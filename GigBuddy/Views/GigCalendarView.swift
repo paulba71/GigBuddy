@@ -10,14 +10,19 @@ struct GigCalendarView: View {
         }
     }
     
+    // Set of dates that have gigs for efficient lookup
+    var datesWithGigs: Set<Date> {
+        Set(viewModel.gigs.map { gig in
+            Calendar.current.startOfDay(for: gig.date)
+        })
+    }
+    
     var body: some View {
         VStack {
-            DatePicker(
-                "Select Date",
-                selection: $selectedDate,
-                displayedComponents: [.date]
+            CustomCalendarView(
+                selectedDate: $selectedDate,
+                datesWithGigs: datesWithGigs
             )
-            .datePickerStyle(.graphical)
             .padding()
             
             if gigsForSelectedDate.isEmpty {
@@ -35,17 +40,137 @@ struct GigCalendarView: View {
                                 .foregroundColor(.secondary)
                             Text(gig.date.formatted(date: .omitted, time: .shortened))
                                 .font(.caption)
-                            HStack(spacing: 4) {
-                                ForEach(0..<5) { index in
-                                    Image(systemName: index < gig.rating ? "star.fill" : "star")
-                                        .foregroundColor(.yellow)
-                                }
-                            }
                         }
                         .padding(.vertical, 4)
                     }
                 }
             }
         }
+    }
+}
+
+struct CustomCalendarView: View {
+    @Binding var selectedDate: Date
+    let datesWithGigs: Set<Date>
+    
+    @State private var currentMonth = Date()
+    private let calendar = Calendar.current
+    private let daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    
+    var body: some View {
+        VStack {
+            // Month selector
+            HStack {
+                Button(action: previousMonth) {
+                    Image(systemName: "chevron.left")
+                }
+                
+                Spacer()
+                
+                Text(monthYearString(from: currentMonth))
+                    .font(.title2)
+                
+                Spacer()
+                
+                Button(action: nextMonth) {
+                    Image(systemName: "chevron.right")
+                }
+            }
+            .padding(.horizontal)
+            
+            // Days of week header
+            HStack {
+                ForEach(daysOfWeek, id: \.self) { day in
+                    Text(day)
+                        .frame(maxWidth: .infinity)
+                        .font(.caption)
+                }
+            }
+            
+            // Calendar grid
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 8) {
+                ForEach(daysInMonth(), id: \.self) { date in
+                    if let date = date {
+                        DayCell(
+                            date: date,
+                            isSelected: calendar.isDate(date, inSameDayAs: selectedDate),
+                            hasGig: datesWithGigs.contains(calendar.startOfDay(for: date))
+                        )
+                        .onTapGesture {
+                            selectedDate = date
+                        }
+                    } else {
+                        Color.clear
+                            .aspectRatio(1, contentMode: .fill)
+                    }
+                }
+            }
+        }
+    }
+    
+    private func monthYearString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM yyyy"
+        return formatter.string(from: date)
+    }
+    
+    private func previousMonth() {
+        if let newDate = calendar.date(byAdding: .month, value: -1, to: currentMonth) {
+            currentMonth = newDate
+        }
+    }
+    
+    private func nextMonth() {
+        if let newDate = calendar.date(byAdding: .month, value: 1, to: currentMonth) {
+            currentMonth = newDate
+        }
+    }
+    
+    private func daysInMonth() -> [Date?] {
+        guard let monthInterval = calendar.dateInterval(of: .month, for: currentMonth),
+              let monthFirstWeek = calendar.dateInterval(of: .weekOfMonth, for: monthInterval.start),
+              let monthLastWeek = calendar.dateInterval(of: .weekOfMonth, for: monthInterval.end - 1) else {
+            return []
+        }
+        
+        let dateFormatter = DateFormatter()
+        dateFormatter.timeZone = calendar.timeZone
+        
+        var days: [Date?] = []
+        var currentDate = monthFirstWeek.start
+        
+        while currentDate < monthLastWeek.end {
+            if currentDate >= monthInterval.start && currentDate < monthInterval.end {
+                days.append(currentDate)
+            } else {
+                days.append(nil)
+            }
+            currentDate = calendar.date(byAdding: .day, value: 1, to: currentDate) ?? currentDate
+        }
+        
+        return days
+    }
+}
+
+struct DayCell: View {
+    let date: Date
+    let isSelected: Bool
+    let hasGig: Bool
+    
+    private let calendar = Calendar.current
+    
+    var body: some View {
+        Text("\(calendar.component(.day, from: date))")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .aspectRatio(1, contentMode: .fill)
+            .foregroundColor(hasGig ? .white : .primary)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(hasGig ? Color.accentColor.opacity(0.8) : Color.clear)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isSelected ? Color.accentColor : (hasGig ? Color.accentColor : Color.clear), lineWidth: isSelected ? 2 : 1)
+            )
     }
 } 

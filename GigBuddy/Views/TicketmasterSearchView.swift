@@ -14,7 +14,7 @@ struct TicketmasterSearchView: View {
     @State private var errorMessage: String?
     @State private var selectedTab = 0
     @State private var hasLoadedInitialEvents = false
-    @State private var selectedRegion = TicketmasterRegion.allRegions[1] // Default to UK
+    @State private var selectedRegion = TicketmasterRegion.allRegions.first { $0.countryCode == "IE" }! // Default to Ireland
     @State private var isSearching = false
     
     private let ticketmasterService = TicketmasterService(apiKey: "Ke3bgfVXyABFsJ648DoLHcUDHkhCTmsG")
