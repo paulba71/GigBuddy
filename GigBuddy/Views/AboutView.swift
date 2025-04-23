@@ -58,6 +58,24 @@ struct AboutView: View {
                                 .font(.caption)
                         }
                     }
+                    
+                    Divider()
+                        .padding(.vertical, 8)
+                    
+                    Link(destination: URL(string: "https://www.setlist.fm")!) {
+                        HStack {
+                            Text("setlist.fm")
+                                .font(.headline)
+                            Spacer()
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption)
+                        }
+                    }
+                    
+                    Text("This app uses the setlist.fm API but is not endorsed or certified by setlist.fm. Setlist data © setlist.fm and its contributors.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .padding(.top, 4)
                 }
                 .padding(.vertical, 4)
             }

@@ -10,6 +10,8 @@ struct GigDetailView: View {
     @State private var rating: Int
     @State private var imageUrl: String?
     @State private var ticketmasterUrl: String?
+    @State private var isLoadingSetlists = false
+    @State private var showingSetlists = false
     
     private var gig: Gig?
     
@@ -63,6 +65,29 @@ struct GigDetailView: View {
                                 }
                         }
                     }
+                }
+                
+                Section {
+                    NavigationLink(destination: PastGigsView(artistName: artist)) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "music.mic")
+                                .font(.title2)
+                                .foregroundColor(.white)
+                            
+                            Text("View Past Gigs")
+                                .font(.headline)
+                                .foregroundColor(.white)
+                            
+                            Spacer()
+                        }
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 16)
+                        .background(Color.blue)
+                        .cornerRadius(25)
+                    }
+                    .disabled(artist.isEmpty)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 }
                 
                 if let ticketmasterUrl = ticketmasterUrl,
