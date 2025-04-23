@@ -11,10 +11,11 @@ struct ContentView: View {
     @StateObject private var viewModel = GigViewModel()
     @State private var showingAddGig = false
     @State private var showingTicketmasterSearch = false
+    @State private var showingAbout = false
     
     var body: some View {
         NavigationView {
-        VStack {
+            VStack {
                 Picker("View", selection: $viewModel.selectedView) {
                     Text("List").tag(GigViewModel.ViewType.list)
                     Text("Calendar").tag(GigViewModel.ViewType.calendar)
@@ -30,6 +31,12 @@ struct ContentView: View {
             }
             .navigationTitle("GigBuddy")
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(action: { showingAbout = true }) {
+                        Image(systemName: "info.circle")
+                    }
+                }
+                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
                         Button(action: { showingAddGig = true }) {
@@ -45,16 +52,21 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showingAddGig) {
                 GigDetailView(viewModel: viewModel)
-        }
+            }
             .sheet(isPresented: $showingTicketmasterSearch) {
                 TicketmasterSearchView(viewModel: viewModel)
-    }
-}
+            }
+            .sheet(isPresented: $showingAbout) {
+                NavigationView {
+                    AboutView()
+                }
+            }
+        }
     }
 }
 
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
-    ContentView()
+        ContentView()
     }
 }
