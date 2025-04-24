@@ -8,6 +8,7 @@ enum SpotifyError: LocalizedError {
     case noMatchFound
     case invalidResponse
     case authenticationFailed
+    case tokenRefreshFailed
     
     var errorDescription: String? {
         switch self {
@@ -23,21 +24,55 @@ enum SpotifyError: LocalizedError {
             return "Received an invalid response from Spotify."
         case .authenticationFailed:
             return "Failed to authenticate with Spotify."
+        case .tokenRefreshFailed:
+            return "Failed to refresh Spotify access token."
         }
+    }
+}
+
+struct SpotifyTokens: Codable {
+    let accessToken: String
+    let refreshToken: String
+    let expirationDate: Date
+    
+    var isExpired: Bool {
+        // Consider token expired 5 minutes before actual expiration
+        Date().addingTimeInterval(300) > expirationDate
     }
 }
 
 class SpotifyService: NSObject, ASWebAuthenticationPresentationContextProviding {
     private let clientId: String
     private let clientSecret: String
-    private var accessToken: String?
-    private var tokenExpirationDate: Date?
-    private var userAccessToken: String?
+    private var currentTokens: SpotifyTokens?
+    
+    private let userDefaults = UserDefaults.standard
+    private let tokensKey = "SpotifyTokens"
     
     init(clientId: String, clientSecret: String) {
         self.clientId = clientId
         self.clientSecret = clientSecret
         super.init()
+        loadTokens()
+    }
+    
+    private func loadTokens() {
+        if let data = userDefaults.data(forKey: tokensKey),
+           let tokens = try? JSONDecoder().decode(SpotifyTokens.self, from: data) {
+            currentTokens = tokens
+        }
+    }
+    
+    private func saveTokens(_ tokens: SpotifyTokens) {
+        currentTokens = tokens
+        if let data = try? JSONEncoder().encode(tokens) {
+            userDefaults.set(data, forKey: tokensKey)
+        }
+    }
+    
+    private func clearTokens() {
+        currentTokens = nil
+        userDefaults.removeObject(forKey: tokensKey)
     }
     
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
@@ -50,8 +85,21 @@ class SpotifyService: NSObject, ASWebAuthenticationPresentationContextProviding 
     }
     
     private func authenticateUser() async throws -> String {
-        if let token = userAccessToken {
-            return token
+        // Check if we have valid tokens
+        if let tokens = currentTokens {
+            if !tokens.isExpired {
+                return tokens.accessToken
+            }
+            
+            // Try to refresh the token
+            do {
+                let newTokens = try await refreshAccessToken(using: tokens.refreshToken)
+                saveTokens(newTokens)
+                return newTokens.accessToken
+            } catch {
+                // If refresh fails, clear tokens and proceed with new authentication
+                clearTokens()
+            }
         }
         
         // Define the OAuth parameters
@@ -88,11 +136,11 @@ class SpotifyService: NSObject, ASWebAuthenticationPresentationContextProviding 
                     return
                 }
                 
-                // Exchange the code for an access token
+                // Exchange the code for tokens
                 Task {
                     do {
-                        let token = try await self.exchangeCodeForToken(code: code, redirectUri: redirectUri)
-                        continuation.resume(returning: token)
+                        let tokens = try await self.exchangeCodeForTokens(code: code, redirectUri: redirectUri)
+                        continuation.resume(returning: tokens.accessToken)
                     } catch {
                         continuation.resume(throwing: error)
                     }
@@ -100,7 +148,7 @@ class SpotifyService: NSObject, ASWebAuthenticationPresentationContextProviding 
             }
             
             session.presentationContextProvider = self
-            session.prefersEphemeralWebBrowserSession = true
+            session.prefersEphemeralWebBrowserSession = false
             
             if !session.start() {
                 continuation.resume(throwing: SpotifyError.authenticationFailed)
@@ -108,7 +156,7 @@ class SpotifyService: NSObject, ASWebAuthenticationPresentationContextProviding 
         }
     }
     
-    private func exchangeCodeForToken(code: String, redirectUri: String) async throws -> String {
+    private func exchangeCodeForTokens(code: String, redirectUri: String) async throws -> SpotifyTokens {
         let url = URL(string: "https://accounts.spotify.com/api/token")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -132,12 +180,58 @@ class SpotifyService: NSObject, ASWebAuthenticationPresentationContextProviding 
         }
         
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let token = json["access_token"] as? String else {
+              let accessToken = json["access_token"] as? String,
+              let refreshToken = json["refresh_token"] as? String,
+              let expiresIn = json["expires_in"] as? Int else {
             throw SpotifyError.invalidResponse
         }
         
-        userAccessToken = token
-        return token
+        let tokens = SpotifyTokens(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            expirationDate: Date().addingTimeInterval(TimeInterval(expiresIn))
+        )
+        
+        saveTokens(tokens)
+        return tokens
+    }
+    
+    private func refreshAccessToken(using refreshToken: String) async throws -> SpotifyTokens {
+        let url = URL(string: "https://accounts.spotify.com/api/token")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        
+        let auth = "\(clientId):\(clientSecret)".data(using: .utf8)!.base64EncodedString()
+        request.setValue("Basic \(auth)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        
+        let body = [
+            "grant_type": "refresh_token",
+            "refresh_token": refreshToken
+        ]
+        request.httpBody = body.map { "\($0)=\($1)" }.joined(separator: "&").data(using: .utf8)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw SpotifyError.tokenRefreshFailed
+        }
+        
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let accessToken = json["access_token"] as? String,
+              let expiresIn = json["expires_in"] as? Int else {
+            throw SpotifyError.invalidResponse
+        }
+        
+        // Use the existing refresh token if a new one isn't provided
+        let newRefreshToken = (json["refresh_token"] as? String) ?? refreshToken
+        
+        return SpotifyTokens(
+            accessToken: accessToken,
+            refreshToken: newRefreshToken,
+            expirationDate: Date().addingTimeInterval(TimeInterval(expiresIn))
+        )
     }
     
     func createPlaylist(from setlist: Setlist) async throws {
