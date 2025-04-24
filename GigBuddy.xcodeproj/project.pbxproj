@@ -10,9 +10,22 @@
 		A0DEA9C62DB8CE6B00821BEB /* GigBuddy.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GigBuddy.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A0DEAA012DB92BC400821BEB /* Exceptions for "GigBuddy" folder in "GigBuddy" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = A0DEA9C52DB8CE6B00821BEB /* GigBuddy */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A0DEA9C82DB8CE6B00821BEB /* GigBuddy */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A0DEAA012DB92BC400821BEB /* Exceptions for "GigBuddy" folder in "GigBuddy" target */,
+			);
 			path = GigBuddy;
 			sourceTree = "<group>";
 		};
@@ -252,8 +265,11 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"GigBuddy/Preview Content\"";
+				DEVELOPMENT_TEAM = CVPV8WR9Y3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GigBuddy/Info.plist;
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "GigBuddy needs access to Apple Music to create playlists from setlists.\n";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -280,8 +296,11 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"GigBuddy/Preview Content\"";
+				DEVELOPMENT_TEAM = CVPV8WR9Y3;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = GigBuddy/Info.plist;
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "GigBuddy needs access to Apple Music to create playlists from setlists.\n";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

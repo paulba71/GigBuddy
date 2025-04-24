@@ -2,9 +2,45 @@ import SwiftUI
 
 struct SetlistDetailView: View {
     let setlist: Setlist
+    @State private var isCreatingSpotifyPlaylist = false
+    @State private var showingError = false
+    @State private var error: Error?
+    
+    private let spotifyService = SpotifyService(
+        clientId: SpotifyConfig.clientId,
+        clientSecret: SpotifyConfig.clientSecret
+    )
     
     var body: some View {
         List {
+            Section {
+                VStack(spacing: 16) {
+                    // Spotify Button
+                    Button(action: {
+                        createSpotifyPlaylist()
+                    }) {
+                        HStack {
+                            if isCreatingSpotifyPlaylist {
+                                ProgressView()
+                                    .tint(.white)
+                            } else {
+                                Image(systemName: "music.note.list")
+                                    .font(.title3)
+                            }
+                            Text("Create Spotify Playlist")
+                                .font(.headline)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(Color(red: 0.11, green: 0.73, blue: 0.33))
+                        .foregroundColor(.white)
+                        .cornerRadius(25)
+                    }
+                    .disabled(isCreatingSpotifyPlaylist)
+                }
+                .padding(.vertical, 8)
+            }
+            
             Section {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(setlist.venue.name)
@@ -38,6 +74,11 @@ struct SetlistDetailView: View {
         }
         .navigationTitle("Setlist")
         .navigationBarTitleDisplayMode(.inline)
+        .alert("Error", isPresented: $showingError, presenting: error) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { error in
+            Text(error.localizedDescription)
+        }
     }
     
     private func getSetName(for set: SetlistSet) -> String {
@@ -45,6 +86,21 @@ struct SetlistDetailView: View {
             return "Encore \(encore)"
         }
         return set.name ?? "Main Set"
+    }
+    
+    private func createSpotifyPlaylist() {
+        isCreatingSpotifyPlaylist = true
+        
+        Task {
+            do {
+                try await spotifyService.createPlaylist(from: setlist)
+                isCreatingSpotifyPlaylist = false
+            } catch {
+                self.error = error
+                showingError = true
+                isCreatingSpotifyPlaylist = false
+            }
+        }
     }
 }
 
