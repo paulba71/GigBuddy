@@ -12,7 +12,7 @@ struct TicketmasterSearchView: View {
     @State private var upcomingEvents: [TicketmasterEvent] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
-    @State private var selectedTab = 0
+    @State private var selectedTab = 1  // Change default to search tab
     @State private var hasLoadedInitialEvents = false
     @State private var selectedRegion = TicketmasterRegion.allRegions.first { $0.countryCode == "IE" }! // Default to Ireland
     @State private var isSearching = false
@@ -31,8 +31,8 @@ struct TicketmasterSearchView: View {
                 .padding(.horizontal)
                 
                 Picker("View Mode", selection: $selectedTab) {
-                    Text("Upcoming").tag(0)
                     Text("Search").tag(1)
+                    Text("Upcoming").tag(0)
                 }
                 .pickerStyle(SegmentedPickerStyle())
                 .padding()
@@ -48,16 +48,11 @@ struct TicketmasterSearchView: View {
                 
                 if isLoading {
                     ProgressView("Loading events...")
-                        .onAppear {
-                            print("⚡️ LOADING STATE ACTIVATED ⚡️")
-                            os_log("Loading state activated", type: .debug)
-                        }
                 } else if let error = errorMessage {
                     VStack {
                         Text(error)
                             .foregroundColor(.red)
                         Button("Try Again") {
-                            print("🔄 RETRY BUTTON TAPPED 🔄")
                             Task {
                                 if selectedTab == 0 {
                                     await loadUpcomingEvents()
@@ -98,7 +93,7 @@ struct TicketmasterSearchView: View {
                     }
                 }
             }
-            .navigationTitle("GigBuddy")
+            .navigationTitle("Add Event")
             .navigationBarItems(trailing: Button("Done") {
                 dismiss()
             })
@@ -113,10 +108,11 @@ struct TicketmasterSearchView: View {
                 }
             }
             .onChange(of: selectedTab) { newValue in
-                if newValue == 0 {
-                    // Clear search when switching to upcoming
-                    searchText = ""
-                    events = []
+                if newValue == 0 && !hasLoadedInitialEvents {
+                    Task {
+                        await loadUpcomingEvents()
+                        hasLoadedInitialEvents = true
+                    }
                 }
             }
             .onChange(of: locationManager.location) { _ in
@@ -133,13 +129,6 @@ struct TicketmasterSearchView: View {
                     } else if !searchText.isEmpty {
                         await performSearch()
                     }
-                }
-            }
-            .task {
-                print("🚀 VIEW APPEARED - LOADING INITIAL EVENTS 🚀")
-                if !hasLoadedInitialEvents {
-                    await loadUpcomingEvents()
-                    hasLoadedInitialEvents = true
                 }
             }
         }
@@ -224,18 +213,44 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
 struct SearchBar: View {
     @Binding var text: String
     var onSearch: () -> Void
+    @FocusState private var isFocused: Bool
     
     var body: some View {
-        HStack {
-            TextField("Search events...", text: $text)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-                .autocapitalization(.none)
-                .onSubmit(onSearch)
+        VStack {
+            HStack {
+                TextField("Search events...", text: $text)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .autocapitalization(.none)
+                    .onSubmit(onSearch)
+                    .focused($isFocused)
+                
+                if !text.isEmpty {
+                    Button(action: {
+                        text = ""
+                        isFocused = false
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.gray)
+                    }
+                }
+                
+                Button(action: {
+                    isFocused = false
+                    onSearch()
+                }) {
+                    Image(systemName: "magnifyingglass")
+                }
+            }
             
-            Button(action: onSearch) {
-                Image(systemName: "magnifyingglass")
+            if isFocused {
+                Button("Done") {
+                    isFocused = false
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.top, 8)
             }
         }
+        .padding(.bottom, isFocused ? 8 : 0)
     }
 }
 

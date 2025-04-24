@@ -71,8 +71,9 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showingSettings) {
                 NavigationView {
-                    SettingsView(viewModel: viewModel)
+                    SettingsView()
                 }
+                .environmentObject(viewModel)
             }
         }
     }

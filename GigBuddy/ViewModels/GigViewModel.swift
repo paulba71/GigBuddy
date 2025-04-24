@@ -5,6 +5,7 @@ import SwiftUI
 class GigViewModel: ObservableObject {
     @Published var gigs: [Gig] = []
     @Published var selectedView: ViewType = .list
+    @AppStorage("defaultTicketCount") var defaultTicketCount: Int = 2
     
     enum ViewType {
         case list
@@ -14,6 +15,9 @@ class GigViewModel: ObservableObject {
     enum ImportError: Error, LocalizedError {
         case invalidData
         case fileError
+        case emptyFile
+        case invalidFormat
+        case accessError
         
         var errorDescription: String? {
             switch self {
@@ -21,6 +25,26 @@ class GigViewModel: ObservableObject {
                 return "The selected file contains invalid data."
             case .fileError:
                 return "Unable to read the selected file."
+            case .emptyFile:
+                return "The selected file is empty."
+            case .invalidFormat:
+                return "The file format is not valid. Please select a GigBuddy backup file."
+            case .accessError:
+                return "Unable to access the selected file. Please try again."
+            }
+        }
+    }
+    
+    enum ExportError: LocalizedError {
+        case encodingFailed
+        case writingFailed
+        
+        var errorDescription: String? {
+            switch self {
+            case .encodingFailed:
+                return "Failed to encode gigs data for export"
+            case .writingFailed:
+                return "Failed to write gigs data to file"
             }
         }
     }
@@ -62,7 +86,22 @@ class GigViewModel: ObservableObject {
         
         // Only add if it's not a duplicate
         if !isDuplicate {
-            gigs.append(gig)
+            // Create a new gig with the default ticket count if not specified
+            var newGig = gig
+            if newGig.ticketCount == 0 {
+                newGig = Gig(
+                    id: gig.id,
+                    date: gig.date,
+                    artist: gig.artist,
+                    location: gig.location,
+                    rating: gig.rating,
+                    ticketCount: defaultTicketCount,
+                    ticketmasterId: gig.ticketmasterId,
+                    ticketmasterUrl: gig.ticketmasterUrl,
+                    imageUrl: gig.imageUrl
+                )
+            }
+            gigs.append(newGig)
             saveGigs()
         }
     }
@@ -94,25 +133,18 @@ class GigViewModel: ObservableObject {
     }
     
     // Export gigs to a JSON file
-    func exportGigs() -> URL? {
+    func exportGigs(to url: URL) throws {
         let encoder = JSONEncoder()
-        encoder.outputFormatting = .prettyPrinted
         encoder.dateEncodingStrategy = .iso8601
-        
-        guard let data = try? encoder.encode(gigs) else { return nil }
-        
-        let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "yyyy-MM-dd"
-        let fileName = "gigbuddy-backup-\(dateFormatter.string(from: Date())).json"
-        
-        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         
         do {
-            try data.write(to: fileURL)
-            return fileURL
+            let data = try encoder.encode(gigs)
+            try data.write(to: url, options: .atomic)
+        } catch EncodingError.invalidValue(_, _) {
+            throw ExportError.encodingFailed
         } catch {
-            print("Error exporting gigs: \(error)")
-            return nil
+            throw ExportError.writingFailed
         }
     }
     
@@ -122,7 +154,29 @@ class GigViewModel: ObservableObject {
         decoder.dateDecodingStrategy = .iso8601
         
         do {
+            // Start a coordinated read of the file
+            if !url.startAccessingSecurityScopedResource() {
+                throw ImportError.accessError
+            }
+            
+            defer {
+                url.stopAccessingSecurityScopedResource()
+            }
+            
+            // Read the data
             let data = try Data(contentsOf: url)
+            
+            // Validate data is not empty
+            guard !data.isEmpty else {
+                throw ImportError.emptyFile
+            }
+            
+            // Validate JSON format
+            guard let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                throw ImportError.invalidFormat
+            }
+            
+            // Try to decode the data
             let importedGigs = try decoder.decode([Gig].self, from: data)
             
             // Merge imported gigs with existing ones, avoiding duplicates
@@ -133,8 +187,14 @@ class GigViewModel: ObservableObject {
             }
             
             saveGigs()
-        } catch {
+        } catch let decodingError as DecodingError {
+            print("Decoding error: \(decodingError)")
             throw ImportError.invalidData
+        } catch let importError as ImportError {
+            throw importError
+        } catch {
+            print("Import error: \(error)")
+            throw ImportError.fileError
         }
     }
     
