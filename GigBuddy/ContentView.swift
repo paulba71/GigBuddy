@@ -12,6 +12,7 @@ struct ContentView: View {
     @State private var showingAddGig = false
     @State private var showingTicketmasterSearch = false
     @State private var showingAbout = false
+    @State private var showingSettings = false
     
     var body: some View {
         NavigationView {
@@ -32,8 +33,15 @@ struct ContentView: View {
             .navigationTitle("GigBuddy")
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button(action: { showingAbout = true }) {
-                        Image(systemName: "info.circle")
+                    Menu {
+                        Button(action: { showingAbout = true }) {
+                            Label("About", systemImage: "info.circle")
+                        }
+                        Button(action: { showingSettings = true }) {
+                            Label("Settings", systemImage: "gear")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
                     }
                 }
                 
@@ -59,6 +67,11 @@ struct ContentView: View {
             .sheet(isPresented: $showingAbout) {
                 NavigationView {
                     AboutView()
+                }
+            }
+            .sheet(isPresented: $showingSettings) {
+                NavigationView {
+                    SettingsView(viewModel: viewModel)
                 }
             }
         }

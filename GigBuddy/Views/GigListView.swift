@@ -121,9 +121,19 @@ struct GigRowView: View {
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .lineLimit(1)
-                Text(gig.date.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                HStack {
+                    Text(gig.date.formatted(date: .abbreviated, time: .shortened))
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    HStack(spacing: 4) {
+                        Image(systemName: "ticket.fill")
+                            .font(.caption)
+                        Text("\(gig.ticketCount)")
+                            .font(.caption)
+                    }
+                    .foregroundColor(gig.ticketCount > 0 ? .green : .secondary)
+                }
             }
         }
         .padding(.vertical, 4)

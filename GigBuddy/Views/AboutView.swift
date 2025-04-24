@@ -44,40 +44,28 @@ struct AboutView: View {
             }
             
             Section(header: Text("Acknowledgments")) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Event data provided by:")
-                        .font(.caption)
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Event Data")
+                        .font(.headline)
+                    Text("Powered by the Ticketmaster Discovery API")
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
                     
-                    Link(destination: URL(string: "https://developer.ticketmaster.com")!) {
-                        HStack {
-                            Text("Ticketmaster")
-                                .font(.headline)
-                            Spacer()
-                            Image(systemName: "arrow.up.right")
-                                .font(.caption)
-                        }
-                    }
-                    
-                    Divider()
-                        .padding(.vertical, 8)
-                    
-                    Link(destination: URL(string: "https://www.setlist.fm")!) {
-                        HStack {
-                            Text("setlist.fm")
-                                .font(.headline)
-                            Spacer()
-                            Image(systemName: "arrow.up.right")
-                                .font(.caption)
-                        }
-                    }
-                    
-                    Text("This app uses the setlist.fm API but is not endorsed or certified by setlist.fm. Setlist data © setlist.fm and its contributors.")
-                        .font(.caption2)
+                    Text("Setlist Information")
+                        .font(.headline)
+                        .padding(.top, 8)
+                    Text("Provided by setlist.fm")
+                        .font(.subheadline)
                         .foregroundColor(.secondary)
-                        .padding(.top, 4)
+                    
+                    Text("Music Integration")
+                        .font(.headline)
+                        .padding(.top, 8)
+                    Text("Playlist generation powered by Spotify")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, 8)
             }
         }
         .navigationTitle("About")

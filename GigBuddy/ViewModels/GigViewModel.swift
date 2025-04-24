@@ -11,6 +11,20 @@ class GigViewModel: ObservableObject {
         case calendar
     }
     
+    enum ImportError: Error, LocalizedError {
+        case invalidData
+        case fileError
+        
+        var errorDescription: String? {
+            switch self {
+            case .invalidData:
+                return "The selected file contains invalid data."
+            case .fileError:
+                return "Unable to read the selected file."
+            }
+        }
+    }
+    
     var upcomingGigs: [Gig] {
         let today = Calendar.current.startOfDay(for: Date())
         return gigs.filter { gig in
@@ -62,6 +76,65 @@ class GigViewModel: ObservableObject {
         if let index = gigs.firstIndex(where: { $0.id == gig.id }) {
             gigs[index] = gig
             saveGigs()
+        }
+    }
+    
+    func deleteAllGigs() {
+        gigs.removeAll()
+        saveGigs()
+    }
+    
+    func deleteFutureGigs() {
+        let today = Calendar.current.startOfDay(for: Date())
+        gigs.removeAll { gig in
+            let gigDate = Calendar.current.startOfDay(for: gig.date)
+            return gigDate >= today
+        }
+        saveGigs()
+    }
+    
+    // Export gigs to a JSON file
+    func exportGigs() -> URL? {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .prettyPrinted
+        encoder.dateEncodingStrategy = .iso8601
+        
+        guard let data = try? encoder.encode(gigs) else { return nil }
+        
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let fileName = "gigbuddy-backup-\(dateFormatter.string(from: Date())).json"
+        
+        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        
+        do {
+            try data.write(to: fileURL)
+            return fileURL
+        } catch {
+            print("Error exporting gigs: \(error)")
+            return nil
+        }
+    }
+    
+    // Import gigs from a JSON file
+    func importGigs(from url: URL) throws {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        
+        do {
+            let data = try Data(contentsOf: url)
+            let importedGigs = try decoder.decode([Gig].self, from: data)
+            
+            // Merge imported gigs with existing ones, avoiding duplicates
+            for gig in importedGigs {
+                if !gigs.contains(where: { $0.id == gig.id }) {
+                    gigs.append(gig)
+                }
+            }
+            
+            saveGigs()
+        } catch {
+            throw ImportError.invalidData
         }
     }
     

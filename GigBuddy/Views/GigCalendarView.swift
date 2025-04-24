@@ -1,5 +1,15 @@
 import SwiftUI
 
+// Add Array extension for rotation
+extension Array {
+    mutating func rotate(by offset: Int) {
+        let offset = (offset % count + count) % count // Normalize the offset
+        let slice1 = self[..<offset]
+        let slice2 = self[offset...]
+        self = Array(slice2 + slice1)
+    }
+}
+
 struct GigCalendarView: View {
     @ObservedObject var viewModel: GigViewModel
     @State private var selectedDate = Date()
@@ -55,7 +65,18 @@ struct CustomCalendarView: View {
     
     @State private var currentMonth = Date()
     private let calendar = Calendar.current
-    private let daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    private var daysOfWeek: [String] {
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        guard var weekdaySymbols = formatter.veryShortWeekdaySymbols else {
+            return []
+        }
+        // Rotate array to match calendar's first weekday
+        let firstWeekday = calendar.firstWeekday
+        let rotatedAmount = firstWeekday - 1 // Convert to 0-based index
+        let rotatedSymbols = Array(weekdaySymbols[rotatedAmount...] + weekdaySymbols[..<rotatedAmount])
+        return rotatedSymbols
+    }
     
     var body: some View {
         VStack {

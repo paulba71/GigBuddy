@@ -8,6 +8,7 @@ struct GigDetailView: View {
     @State private var location: String
     @State private var date: Date
     @State private var rating: Int
+    @State private var ticketCount: Int
     @State private var imageUrl: String?
     @State private var ticketmasterUrl: String?
     @State private var isLoadingSetlists = false
@@ -23,6 +24,7 @@ struct GigDetailView: View {
         _location = State(initialValue: gig?.location ?? "")
         _date = State(initialValue: gig?.date ?? Date())
         _rating = State(initialValue: gig?.rating ?? 3)
+        _ticketCount = State(initialValue: gig?.ticketCount ?? 0)
         _imageUrl = State(initialValue: gig?.imageUrl)
         _ticketmasterUrl = State(initialValue: gig?.ticketmasterUrl)
     }
@@ -53,6 +55,14 @@ struct GigDetailView: View {
                     TextField("Artist", text: $artist)
                     TextField("Location", text: $location)
                     DatePicker("Date and Time", selection: $date)
+                    Stepper(value: $ticketCount, in: 0...99) {
+                        HStack {
+                            Text("Tickets")
+                            Spacer()
+                            Text("\(ticketCount)")
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
                 
                 Section(header: Text("Rating")) {
@@ -96,35 +106,35 @@ struct GigDetailView: View {
                         Link("Buy Tickets on Ticketmaster", destination: url)
                     }
                 }
-                
-                Section {
-                    Button(gig == nil ? "Add Gig" : "Update Gig") {
-                        let newGig = Gig(
-                            id: gig?.id ?? UUID(),
-                            date: date,
-                            artist: artist,
-                            location: location,
-                            rating: rating,
-                            ticketmasterId: gig?.ticketmasterId,
-                            ticketmasterUrl: ticketmasterUrl,
-                            imageUrl: imageUrl
-                        )
-                        
-                        if gig != nil {
-                            viewModel.updateGig(newGig)
-                        } else {
-                            viewModel.addGig(newGig)
-                        }
-                        
-                        dismiss()
-                    }
-                    .disabled(artist.isEmpty || location.isEmpty)
-                }
             }
             .navigationTitle(gig == nil ? "New Gig" : "Edit Gig")
-            .navigationBarItems(trailing: Button("Cancel") {
-                dismiss()
-            })
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    dismiss()
+                },
+                trailing: Button(gig == nil ? "Add" : "Update") {
+                    let newGig = Gig(
+                        id: gig?.id ?? UUID(),
+                        date: date,
+                        artist: artist,
+                        location: location,
+                        rating: rating,
+                        ticketCount: ticketCount,
+                        ticketmasterId: gig?.ticketmasterId,
+                        ticketmasterUrl: ticketmasterUrl,
+                        imageUrl: imageUrl
+                    )
+                    
+                    if gig != nil {
+                        viewModel.updateGig(newGig)
+                    } else {
+                        viewModel.addGig(newGig)
+                    }
+                    
+                    dismiss()
+                }
+                .disabled(artist.isEmpty || location.isEmpty)
+            )
         }
     }
 } 
