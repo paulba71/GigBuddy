@@ -41,7 +41,12 @@ class SpotifyService: NSObject, ASWebAuthenticationPresentationContextProviding 
     }
     
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        return UIApplication.shared.windows.first!
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first else {
+            // Fallback to first available window if no scene is available
+            return UIApplication.shared.windows.first!
+        }
+        return window
     }
     
     private func authenticateUser() async throws -> String {
@@ -197,7 +202,7 @@ class SpotifyService: NSObject, ASWebAuthenticationPresentationContextProviding 
         createRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         createRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        let playlistName = "Setlist: \(setlist.artist.name) at \(setlist.venue.name)"
+        let playlistName = "GigBuddy: \(setlist.artist.name) at \(setlist.venue.name)"
         let description = "Setlist from \(setlist.formattedDate) at \(setlist.venue.name), \(setlist.venue.city.name)"
         let createBody: [String: Any] = [
             "name": playlistName,
