@@ -1,11 +1,30 @@
 import SwiftUI
 
-struct AboutView: View {
-    // Get the app version from the bundle
-    private var appVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+struct Version {
+    static let current = Version(major: 1, minor: 0, patch: 0, releaseType: .rc)
+    
+    let major: Int
+    let minor: Int
+    let patch: Int
+    let releaseType: ReleaseType
+    
+    enum ReleaseType: String {
+        case alpha = "Alpha"
+        case beta = "Beta"
+        case rc = "RC"
+        case release = ""
+        
+        var description: String {
+            self == .release ? "" : " \(rawValue)"
+        }
     }
     
+    var description: String {
+        "\(major).\(minor).\(patch)\(releaseType.description)"
+    }
+}
+
+struct AboutView: View {
     // Get the build number from the bundle
     private var buildNumber: String {
         Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
@@ -23,7 +42,7 @@ struct AboutView: View {
                         .font(.title)
                         .bold()
                     
-                    Text("Version \(appVersion) (\(buildNumber))")
+                    Text("Version \(Version.current.description) (\(buildNumber))")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
