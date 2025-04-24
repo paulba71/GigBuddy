@@ -8,6 +8,15 @@ struct PastGigsView: View {
     
     private let setlistService = SetlistFMService()
     
+    var filteredSetlists: [Setlist] {
+        setlists.filter { setlist in
+            // Only include setlists that have at least one song
+            setlist.sets.set.reduce(0) { count, set in
+                count + set.song.count
+            } > 0
+        }
+    }
+    
     var body: some View {
         Group {
             if isLoading {
@@ -31,7 +40,7 @@ struct PastGigsView: View {
                     }
                 }
                 .padding()
-            } else if setlists.isEmpty {
+            } else if filteredSetlists.isEmpty {
                 VStack(spacing: 16) {
                     Image(systemName: "music.mic")
                         .font(.system(size: 50))
@@ -43,7 +52,7 @@ struct PastGigsView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 20) {
-                        ForEach(setlists) { setlist in
+                        ForEach(filteredSetlists) { setlist in
                             NavigationLink(destination: SetlistDetailView(setlist: setlist)) {
                                 PastGigCard(setlist: setlist)
                             }

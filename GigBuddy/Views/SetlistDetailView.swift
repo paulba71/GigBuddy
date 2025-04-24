@@ -5,6 +5,8 @@ struct SetlistDetailView: View {
     @State private var isCreatingSpotifyPlaylist = false
     @State private var showingError = false
     @State private var error: Error?
+    @State private var showingCreatingPlaylistToast = false
+    @State private var showingPlaylistCreatedToast = false
     
     private let spotifyService = SpotifyService(
         clientId: SpotifyConfig.clientId,
@@ -79,6 +81,28 @@ struct SetlistDetailView: View {
         } message: { error in
             Text(error.localizedDescription)
         }
+        .overlay(
+            Group {
+                if showingCreatingPlaylistToast {
+                    Toast(type: .info,
+                          title: "Creating Playlist",
+                          message: "Finding songs and creating your Spotify playlist...")
+                        .padding(.horizontal, 20)
+                        .padding(.top, 20)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                } else if showingPlaylistCreatedToast {
+                    Toast(type: .success,
+                          title: "Success!",
+                          message: "Your Spotify playlist has been created.")
+                        .padding(.horizontal, 20)
+                        .padding(.top, 20)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
+            .animation(.easeInOut(duration: 0.3), value: showingCreatingPlaylistToast)
+            .animation(.easeInOut(duration: 0.3), value: showingPlaylistCreatedToast)
+            , alignment: .top
+        )
     }
     
     private func getSetName(for set: SetlistSet) -> String {
@@ -90,15 +114,33 @@ struct SetlistDetailView: View {
     
     private func createSpotifyPlaylist() {
         isCreatingSpotifyPlaylist = true
+        withAnimation(.easeInOut(duration: 0.3)) {
+            showingCreatingPlaylistToast = true
+        }
         
         Task {
             do {
                 try await spotifyService.createPlaylist(from: setlist)
                 isCreatingSpotifyPlaylist = false
+                
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    showingCreatingPlaylistToast = false
+                    showingPlaylistCreatedToast = true
+                }
+                
+                // Auto-hide the success toast after 3 seconds
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    showingPlaylistCreatedToast = false
+                }
             } catch {
                 self.error = error
                 showingError = true
                 isCreatingSpotifyPlaylist = false
+                
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    showingCreatingPlaylistToast = false
+                }
             }
         }
     }
