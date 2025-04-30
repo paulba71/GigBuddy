@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct Version {
-    static let current = Version(major: 1, minor: 0, patch: 0, releaseType: .rc)
+    static let current = Version(major: 1, minor: 0, patch: 1, releaseType: .release)
     
     let major: Int
     let minor: Int
@@ -12,7 +12,7 @@ struct Version {
         case alpha = "Alpha"
         case beta = "Beta"
         case rc = "RC"
-        case release = ""
+        case release = "Release"
         
         var description: String {
             self == .release ? "" : " \(rawValue)"
