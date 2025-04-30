@@ -78,7 +78,11 @@ struct GigDetailView: View {
                 }
                 
                 Section {
-                    NavigationLink(destination: PastGigsView(artistName: artist)) {
+                    let separators = [":", " - "]
+                    let bandName = separators.reduce(artist) { result, separator in
+                        (result.components(separatedBy: separator).first ?? result)
+                    }.trimmingCharacters(in: .whitespacesAndNewlines)
+                    NavigationLink(destination: PastGigsView(artistName: bandName)) {
                         HStack(spacing: 12) {
                             Image(systemName: "music.mic")
                                 .font(.title2)
