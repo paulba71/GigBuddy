@@ -12,7 +12,7 @@ struct TicketmasterSearchView: View {
     @State private var upcomingEvents: [TicketmasterEvent] = []
     @State private var isLoading = false
     @State private var errorMessage: String?
-    @State private var selectedTab = 1  // Change default to search tab
+    @State private var selectedTab = 1
     @State private var hasLoadedInitialEvents = false
     @State private var selectedRegion = TicketmasterRegion.allRegions.first { $0.countryCode == "IE" }! // Default to Ireland
     @State private var isSearching = false
@@ -23,7 +23,7 @@ struct TicketmasterSearchView: View {
         NavigationView {
             VStack {
                 Picker("Region", selection: $selectedRegion) {
-                    ForEach(TicketmasterRegion.allRegions) { region in
+                    ForEach(TicketmasterRegion.allRegions, id: \.self) { region in
                         Text(region.name).tag(region)
                     }
                 }
@@ -98,20 +98,20 @@ struct TicketmasterSearchView: View {
                 dismiss()
             })
             .onChange(of: searchText) { newValue in
-                // Only perform search if in search tab and text is not empty
                 if selectedTab == 1 && !newValue.isEmpty {
                     Task {
                         await performSearch()
                     }
                 } else if selectedTab == 1 && newValue.isEmpty {
-                    events = [] // Clear results when search is empty
+                    events = []
                 }
             }
             .onChange(of: selectedTab) { newValue in
-                if newValue == 0 && !hasLoadedInitialEvents {
-                    Task {
+                Task {
+                    if newValue == 0 {
                         await loadUpcomingEvents()
-                        hasLoadedInitialEvents = true
+                    } else if !searchText.isEmpty {
+                        await performSearch()
                     }
                 }
             }
@@ -131,6 +131,14 @@ struct TicketmasterSearchView: View {
                     }
                 }
             }
+            .onAppear {
+                // Load initial events when view appears
+                Task {
+                    if selectedTab == 0 {
+                        await loadUpcomingEvents()
+                    }
+                }
+            }
         }
     }
     
@@ -146,7 +154,7 @@ struct TicketmasterSearchView: View {
             upcomingEvents = try await ticketmasterService.discoverUpcomingEvents(
                 latitude: locationManager.location?.coordinate.latitude,
                 longitude: locationManager.location?.coordinate.longitude,
-                in: selectedRegion
+                in: [selectedRegion]
             )
             print("✅ Successfully loaded \(upcomingEvents.count) upcoming events")
         } catch {
@@ -167,7 +175,10 @@ struct TicketmasterSearchView: View {
         errorMessage = nil
         
         do {
-            events = try await ticketmasterService.searchEvents(keyword: searchText, in: selectedRegion)
+            events = try await ticketmasterService.searchEvents(
+                keyword: searchText,
+                in: [selectedRegion]
+            )
             print("✅ Successfully loaded \(events.count) search results for '\(searchText)'")
         } catch {
             print("❌ Error searching events: \(error.localizedDescription)")
@@ -175,6 +186,118 @@ struct TicketmasterSearchView: View {
         }
         
         isLoading = false
+    }
+}
+
+// MARK: - Supporting Views
+
+struct RegionSelector: View {
+    @Binding var selectedRegions: Set<TicketmasterRegion>
+    
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text("Search Regions")
+                .font(.headline)
+                .padding(.horizontal)
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack {
+                    ForEach(TicketmasterRegion.allRegions.filter { $0.countryCode == "IE" || $0.countryCode == "GB" }, id: \.self) { region in
+                        RegionButton(
+                            region: region,
+                            isSelected: selectedRegions.contains(region),
+                            action: {
+                                if selectedRegions.contains(region) {
+                                    selectedRegions.remove(region)
+                                } else {
+                                    selectedRegions.insert(region)
+                                }
+                            }
+                        )
+                    }
+                }
+                .padding(.horizontal)
+            }
+        }
+        .padding(.vertical, 8)
+    }
+}
+
+struct RegionButton: View {
+    let region: TicketmasterRegion
+    let isSelected: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                Text(region.name)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(isSelected ? Color.blue : Color.gray.opacity(0.2))
+            .foregroundColor(isSelected ? .white : .primary)
+            .cornerRadius(20)
+        }
+    }
+}
+
+struct ErrorView: View {
+    let error: String
+    let retryAction: () -> Void
+    
+    var body: some View {
+        VStack {
+            Text(error)
+                .foregroundColor(.red)
+            Button("Try Again", action: retryAction)
+        }
+    }
+}
+
+struct EventsListView: View {
+    let events: [TicketmasterEvent]
+    let selectedTab: Int
+    let searchText: String
+    let onEventTap: (TicketmasterEvent) -> Void
+    let onRefresh: () async -> Void
+    
+    var body: some View {
+        Group {
+            if events.isEmpty {
+                EmptyStateView(selectedTab: selectedTab, searchText: searchText)
+            } else {
+                List(events) { event in
+                    NavigationLink(destination: EventDetailView(event: event)) {
+                        EventRow(event: event)
+                    }
+                    .onTapGesture {
+                        onEventTap(event)
+                    }
+                }
+                .refreshable {
+                    await onRefresh()
+                }
+            }
+        }
+    }
+}
+
+struct EmptyStateView: View {
+    let selectedTab: Int
+    let searchText: String
+    
+    var body: some View {
+        VStack {
+            Image(systemName: selectedTab == 0 ? "calendar" : "magnifyingglass")
+                .font(.largeTitle)
+                .foregroundColor(.secondary)
+            Text(selectedTab == 0 ? "No upcoming events found nearby" : (searchText.isEmpty ? "Enter a search term" : "No search results"))
+                .foregroundColor(.secondary)
+                .padding(.top)
+        }
+        .frame(maxHeight: .infinity)
     }
 }
 
@@ -279,7 +402,7 @@ struct EventRow: View {
                 .lineLimit(2)
             
             if let venue = event.embedded?.venues?.first {
-                Text("\(venue.name), \(venue.city.name)")
+                Text("\(venue.name ?? "Unknown Venue")\(venue.city?.name != nil ? ", \(venue.city!.name)" : "")")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .lineLimit(1)
@@ -338,12 +461,14 @@ struct EventDetailView: View {
                     
                     if let venue = event.embedded?.venues?.first {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(venue.name)
+                            Text(venue.name ?? "Unknown Venue")
                                 .font(.headline)
-                            Text("\(venue.city.name)")
+                            Text("\(venue.city?.name ?? "Unknown City")")
                                 .foregroundColor(.secondary)
-                            Text(venue.address.line1)
-                                .foregroundColor(.secondary)
+                            if let address = venue.address {
+                                Text(address.line1)
+                                    .foregroundColor(.secondary)
+                            }
                         }
                     }
                     
@@ -355,9 +480,11 @@ struct EventDetailView: View {
                             .font(.headline)
                     }
                     
-                    Link("Buy Tickets", destination: URL(string: event.url)!)
-                        .buttonStyle(.borderedProminent)
-                        .padding(.top)
+                    if let urlString = event.url, let url = URL(string: urlString) {
+                        Link("Buy Tickets", destination: url)
+                            .buttonStyle(.borderedProminent)
+                            .padding(.top)
+                    }
                 }
                 .padding()
             }

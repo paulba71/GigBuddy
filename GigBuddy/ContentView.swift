@@ -54,7 +54,7 @@ struct ContentView: View {
                             Label("Search Ticketmaster", systemImage: "magnifyingglass")
                         }
                     } label: {
-                        Image(systemName: "plus")
+                        Text("Add a gig")
                     }
                 }
             }

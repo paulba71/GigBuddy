@@ -49,7 +49,9 @@ struct Gig: Identifiable, Codable {
         
         // Set the location
         if let venue = ticketmasterEvent.embedded?.venues?.first {
-            self.location = "\(venue.name), \(venue.city.name)"
+            let venueName = venue.name ?? "Unknown Venue"
+            let cityName = venue.city?.name ?? "Unknown City"
+            self.location = "\(venueName), \(cityName)"
         } else {
             self.location = "Unknown Venue"
         }

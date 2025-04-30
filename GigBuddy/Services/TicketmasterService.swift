@@ -2,10 +2,10 @@ import Foundation
 import CoreLocation
 import os
 
-struct TicketmasterEvent: Codable, Identifiable {
+struct TicketmasterEvent: Codable, Identifiable, Hashable {
     let id: String
     let name: String
-    let url: String
+    let url: String?
     let images: [EventImage]
     let dates: EventDates
     let embedded: Embedded?
@@ -14,6 +14,15 @@ struct TicketmasterEvent: Codable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case id, name, url, images, dates, classifications
         case embedded = "_embedded"
+    }
+    
+    // Implement Hashable
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    static func == (lhs: TicketmasterEvent, rhs: TicketmasterEvent) -> Bool {
+        lhs.id == rhs.id
     }
     
     struct EventImage: Codable {
@@ -36,9 +45,9 @@ struct TicketmasterEvent: Codable, Identifiable {
         let venues: [Venue]?
         
         struct Venue: Codable {
-            let name: String
-            let city: City
-            let address: Address
+            let name: String?
+            let city: City?
+            let address: Address?
             let location: Location?
             
             struct City: Codable {
@@ -97,35 +106,53 @@ class TicketmasterService {
         }
     }
     
-    func discoverUpcomingEvents(latitude: Double?, longitude: Double?, in region: TicketmasterRegion) async throws -> [TicketmasterEvent] {
-        var queryItems = [
-            URLQueryItem(name: "apikey", value: apiKey),
-            URLQueryItem(name: "startDateTime", value: ISO8601DateFormatter().string(from: Date())),
-            URLQueryItem(name: "countryCode", value: region.countryCode),
-            URLQueryItem(name: "sort", value: "date,asc"),
-            URLQueryItem(name: "size", value: "50")  // Get more results per page
-        ]
+    func discoverUpcomingEvents(latitude: Double?, longitude: Double?, in regions: [TicketmasterRegion]) async throws -> [TicketmasterEvent] {
+        var allEvents: [TicketmasterEvent] = []
         
-        if let lat = latitude, let lon = longitude {
-            queryItems.append(contentsOf: [
-                URLQueryItem(name: "geoPoint", value: "\(lat),\(lon)"),
-                URLQueryItem(name: "radius", value: "50"),
-                URLQueryItem(name: "unit", value: "miles")
-            ])
+        for region in regions {
+            var queryItems = [
+                URLQueryItem(name: "apikey", value: apiKey),
+                URLQueryItem(name: "startDateTime", value: ISO8601DateFormatter().string(from: Date())),
+                URLQueryItem(name: "countryCode", value: region.countryCode),
+                URLQueryItem(name: "sort", value: "date,asc"),
+                URLQueryItem(name: "size", value: "50")
+            ]
+            
+            if let lat = latitude, let lon = longitude {
+                queryItems.append(contentsOf: [
+                    URLQueryItem(name: "geoPoint", value: "\(lat),\(lon)"),
+                    URLQueryItem(name: "radius", value: "300"),
+                    URLQueryItem(name: "unit", value: "miles")
+                ])
+            }
+            
+            print("Discovering events for region: \(region.name) (countryCode: \(region.countryCode))")
+            let events = try await fetchEvents(endpoint: "/events", queryItems: queryItems)
+            allEvents.append(contentsOf: events)
         }
         
-        return try await fetchEvents(endpoint: "/events", queryItems: queryItems)
+        // Remove duplicates and sort by date
+        return Array(Set(allEvents)).sorted { $0.dates.start.dateTime ?? $0.dates.start.localDate < $1.dates.start.dateTime ?? $1.dates.start.localDate }
     }
     
-    func searchEvents(keyword: String, in region: TicketmasterRegion) async throws -> [TicketmasterEvent] {
-        let queryItems = [
-            URLQueryItem(name: "apikey", value: apiKey),
-            URLQueryItem(name: "keyword", value: keyword),
-            URLQueryItem(name: "countryCode", value: region.countryCode),
-            URLQueryItem(name: "size", value: "50")  // Get more results per page
-        ]
+    func searchEvents(keyword: String, in regions: [TicketmasterRegion]) async throws -> [TicketmasterEvent] {
+        var allEvents: [TicketmasterEvent] = []
         
-        return try await fetchEvents(endpoint: "/events", queryItems: queryItems)
+        for region in regions {
+            var queryItems = [
+                URLQueryItem(name: "apikey", value: apiKey),
+                URLQueryItem(name: "keyword", value: keyword),
+                URLQueryItem(name: "countryCode", value: region.countryCode),
+                URLQueryItem(name: "size", value: "50")
+            ]
+            
+            print("Searching events for region: \(region.name) (countryCode: \(region.countryCode))")
+            let events = try await fetchEvents(endpoint: "/events", queryItems: queryItems)
+            allEvents.append(contentsOf: events)
+        }
+        
+        // Remove duplicates and sort by date
+        return Array(Set(allEvents)).sorted { $0.dates.start.dateTime ?? $0.dates.start.localDate < $1.dates.start.dateTime ?? $1.dates.start.localDate }
     }
     
     private func fetchEvents(endpoint: String, queryItems: [URLQueryItem]) async throws -> [TicketmasterEvent] {
@@ -137,6 +164,10 @@ class TicketmasterService {
         }
         
         print("Fetching events from URL: \(url)")
+        // print("Query parameters:")
+        // queryItems.forEach { item in
+        //     print("- \(item.name): \(item.value ?? \"nil\")")
+        // }
         
         let (data, response) = try await URLSession.shared.data(from: url)
         
@@ -144,28 +175,38 @@ class TicketmasterService {
             throw ServiceError.invalidResponse
         }
         
-        print("Response status code: \(httpResponse.statusCode)")
+        // print("Response status code: \(httpResponse.statusCode)")
+        // let responseString = String(data: data, encoding: .utf8) ?? ""
+        // print("Response data: \(responseString)")
         
         if httpResponse.statusCode == 401 {
             throw ServiceError.apiError("Invalid API key")
         }
         
         guard httpResponse.statusCode == 200 else {
+            if let errorMessage = try? JSONDecoder().decode(TicketmasterAPIError.self, from: data) {
+                print("API error message: \(errorMessage.error)")
+                throw ServiceError.apiError(errorMessage.error)
+            }
             throw ServiceError.apiError("HTTP \(httpResponse.statusCode)")
         }
-        
-        let responseString = String(data: data, encoding: .utf8) ?? ""
-        print("Response data: \(responseString.prefix(1000))")
         
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         
         do {
             let searchResponse = try decoder.decode(SearchResponse.self, from: data)
-            return searchResponse._embedded?.events ?? []
+            let events = searchResponse._embedded?.events ?? []
+            print("Successfully decoded \(events.count) events")
+            return events
         } catch {
+            let snippet = String(data: data, encoding: .utf8)?.prefix(500) ?? "N/A"
             print("Decoding error: \(error)")
-            throw ServiceError.invalidResponse
+            print("Response snippet: \(snippet)")
+            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                print("Top-level keys: \(json.keys)")
+            }
+            throw ServiceError.apiError("Decoding error: \(error.localizedDescription)")
         }
     }
     
@@ -187,6 +228,27 @@ class TicketmasterService {
             let totalPages: Int
             let number: Int
             let size: Int
+        }
+    }
+    
+    private struct TicketmasterAPIError: Codable {
+        let error: String
+        let status: Int?
+        let message: String?
+        // Some Ticketmaster errors use 'errors' array
+        let errors: [String]?
+        
+        // Custom decoding to handle different error formats
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            error = (try? container.decode(String.self, forKey: .error)) ?? (try? container.decode(String.self, forKey: .message)) ?? "Unknown error"
+            status = try? container.decode(Int.self, forKey: .status)
+            message = try? container.decode(String.self, forKey: .message)
+            errors = try? container.decode([String].self, forKey: .errors)
+        }
+        
+        enum CodingKeys: String, CodingKey {
+            case error, status, message, errors
         }
     }
 }

@@ -81,7 +81,9 @@ struct GigListView: View {
                 }
             }
         }
-        .searchable(text: $searchText, prompt: "Search gigs")
+        .if(viewModel.gigs.count >= 4) { view in
+            view.searchable(text: $searchText, prompt: "Search your upcoming gigs")
+        }
     }
 }
 
@@ -137,5 +139,16 @@ struct GigRowView: View {
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func `if`<Content: View>(_ condition: Bool, transform: (Self) -> Content) -> some View {
+        if condition {
+            transform(self)
+        } else {
+            self
+        }
     }
 } 
